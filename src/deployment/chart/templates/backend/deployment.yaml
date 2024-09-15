@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: busybox
+        image: busybox:1.32.0
+        securityContext: #enforces security context
+          allowPrivilegeEscalation: false
+          privileged: false 
+          runAsGroup: 101
+          runAsUser: 101
+        command:  [ 'sh', '-c', 'tail -f /dev/null' ]
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec: 
+            command: 
+              - "true"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        env:
+        - name: USERNAME
+          valueFrom:
+            secretKeyRef: 
+              name: yaml-secret
+              key: username
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef: 
+              name: yaml-secret
+              key: password

@@ -1,0 +1,199 @@
+---
+# Source: chart/templates/backend/networkPolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  namespace: project-plato
+  name: np-backend
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  egress:
+  - to :
+    - podSelector:
+        matchLabels:
+          app: db1
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    - podSelector:
+        matchLabels:
+          app: db2
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# Source: chart/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: project-plato
+  name: yaml-secret
+type: Opaque
+data:
+  username: c2VjcmV0X3VzZXI=
+  password: UGE1NXcucmQ=
+---
+# Source: chart/templates/db1/configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db1-nginx-config
+data:
+  nginx.conf: |
+    events {
+    }
+    stream {
+        server {
+            listen 6379;
+            proxy_pass localhost:80;
+            proxy_protocol on;
+        }
+    }
+---
+# Source: chart/templates/db1/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: project-plato
+  name: db1
+spec:
+  type: ClusterIP
+  selector:
+    app: db1
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+# Source: chart/templates/db2/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: project-plato
+  name: db2
+spec:
+  type: ClusterIP
+  selector:
+    app: db2
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+# Source: chart/templates/backend/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: project-plato
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: busybox
+        image: busybox:1.32.0
+        securityContext: #enforces security context
+          allowPrivilegeEscalation: false
+          privileged: false 
+          runAsGroup: 101
+          runAsUser: 101
+        command:  [ 'sh', '-c', 'tail -f /dev/null' ]
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec: 
+            command: 
+              - "true"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        env:
+        - name: USERNAME
+          valueFrom:
+            secretKeyRef: 
+              name: yaml-secret
+              key: username
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef: 
+              name: yaml-secret
+              key: password
+---
+# Source: chart/templates/db1/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: project-plato
+  name: db1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db1
+  template:
+    metadata:
+      labels:
+        app: db1
+    spec:
+      containers:
+      - name: db1
+        image: nginx:1.16.1-alpine
+        ports:
+        - containerPort: 6379
+        readinessProbe:
+          tcpSocket: 
+            port: 6379
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        volumeMounts: 
+        - name: config-volume
+          mountPath: /etc/nginx
+      volumes:
+      - name: config-volume
+        configMap:
+          name: db1-nginx-config
+---
+# Source: chart/templates/db2/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: project-plato
+  name: db2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db2
+  template:
+    metadata:
+      labels:
+        app: db2
+    spec:
+      containers:
+      - name: db2
+        image: nginx:1.16.1-alpine
+        ports:
+        - containerPort: 5432

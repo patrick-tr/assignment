@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db1-nginx-config
+data:
+  nginx.conf: |
+    events {
+    }
+    stream {
+        server {
+            listen 6379;
+            proxy_pass localhost:80;
+            proxy_protocol on;
+        }
+    }
+  

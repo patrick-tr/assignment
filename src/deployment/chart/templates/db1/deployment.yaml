@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: db1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db1
+  template:
+    metadata:
+      labels:
+        app: db1
+    spec:
+      containers:
+      - name: db1
+        image: nginx:1.16.1-alpine
+        ports:
+        - containerPort: 6379
+        readinessProbe:
+          tcpSocket: 
+            port: 6379
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        volumeMounts: 
+        - name: config-volume
+          mountPath: /etc/nginx
+      volumes:
+      - name: config-volume
+        configMap:
+          name: db1-nginx-config
+  

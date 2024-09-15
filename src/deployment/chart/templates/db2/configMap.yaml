@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db2-nginx-config
+data:
+  nginx.conf: |
+    events {
+    }
+    stream {
+        server {
+            listen 5432;
+            proxy_pass localhost:80;
+            proxy_protocol on;
+        }
+    }
+  
